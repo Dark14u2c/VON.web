@@ -1,0 +1,879 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>VON</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Newsreader:ital,wght@0,400;1,400&family=Unbounded:wght@500;800&display=swap">
+<style>
+/* Layout: three full-height gates (calculator, riddle, VON) shown one at a time; a members layer slides over the VON gate after log in. One deliberate dark look. */
+:root {
+  --bg: #0e1110;
+  --surface: #161a18;
+  --raised: #1e2421;
+  --line: #2b332f;
+  --fg: #e8eae4;
+  --muted: #8c968f;
+  --accent: #d9a441;
+  --accent-ink: #17120a;
+  --danger: #e47a67;
+  --ok: #79bd93;
+  --f-display: "Unbounded", "Arial Black", system-ui, sans-serif;
+  --f-body: "Newsreader", Georgia, "Times New Roman", serif;
+  --f-mono: "DM Mono", ui-monospace, Menlo, Consolas, monospace;
+  color-scheme: dark;
+}
+html, body { height: 100%; }
+body {
+  margin: 0;
+  box-sizing: border-box;
+  background: var(--bg);
+  color: var(--fg);
+  font-family: var(--f-body);
+  font-size: 18px;
+  line-height: 1.5;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+}
+main { height: 100%; }
+.muted { color: var(--muted); }
+.sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+.gate { height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; padding-block: 24px; box-sizing: border-box; }
+.gate.enter { animation: fade .5s ease both; }
+@keyframes fade { from { opacity: 0; } to { opacity: 1; } }
+@keyframes shake { 0%, 100% { transform: translateX(0); } 25% { transform: translateX(-8px); } 75% { transform: translateX(8px); } }
+/* buttons and fields */
+.btn {
+  font-family: var(--f-mono); font-size: 14px; letter-spacing: .02em;
+  padding: 10px 16px; border-radius: 8px; border: 1px solid var(--line);
+  background: var(--raised); color: var(--fg); cursor: pointer;
+}
+.btn:hover { border-color: var(--accent); }
+.btn:disabled { opacity: .5; cursor: default; }
+.btn.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); font-weight: 500; }
+.btn.danger { border-color: var(--danger); color: var(--danger); }
+.btn:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+input[type="text"], input[type="password"], textarea, select {
+  font: inherit; font-size: 17px; color: var(--fg); background: var(--surface);
+  border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; width: 100%; box-sizing: border-box; min-width: 0;
+}
+textarea { resize: vertical; }
+select { width: auto; font-family: var(--f-mono); font-size: 14px; }
+/* gate 1: calculator */
+.calc { width: min(340px, 100%); display: flex; flex-direction: column; gap: 12px; }
+.screen {
+  background: var(--surface); border: 1px solid var(--line); border-radius: 12px;
+  padding: 14px 16px; min-height: 92px; box-sizing: border-box; text-align: right;
+  font-family: var(--f-mono); display: flex; flex-direction: column; justify-content: flex-end; overflow: hidden;
+}
+.exp { color: var(--muted); font-size: 14px; min-height: 21px; white-space: nowrap; }
+.val { font-size: 34px; line-height: 1.15; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.keys { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+.key {
+  height: 60px; font-family: var(--f-mono); font-size: 20px; color: var(--fg);
+  background: var(--raised); border: 1px solid var(--line); border-radius: 10px; cursor: pointer;
+}
+.key:hover { border-color: var(--muted); }
+.key:active { background: var(--surface); }
+.key:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.key.op { color: var(--accent); }
+.key.eq { grid-row: span 2; height: auto; background: var(--accent); border-color: var(--accent); color: var(--accent-ink); font-weight: 500; }
+.key.zero { grid-column: span 2; }
+/* gate 2: riddle */
+.riddle { width: min(640px, 100%); }
+.riddle.shake { animation: shake .35s ease; }
+.eyebrow { font-family: var(--f-mono); font-size: 12px; text-transform: uppercase; letter-spacing: .14em; color: var(--muted); margin: 0; }
+.q { font-style: italic; font-size: clamp(28px, 6vw, 46px); line-height: 1.2; text-wrap: balance; margin: 14px 0 32px; }
+.ans { display: flex; gap: 12px; flex-wrap: wrap; }
+.ans input { flex: 1 1 220px; font-size: 20px; }
+.msg { min-height: 1.5em; margin: 14px 0 0; font-family: var(--f-mono); font-size: 14px; color: var(--muted); }
+.msg.ok { color: var(--ok); }
+.msg.err { color: var(--danger); }
+/* gate 3: VON */
+.von { font-family: var(--f-display); font-weight: 800; font-size: clamp(88px, 26vw, 320px); letter-spacing: .02em; line-height: 1; margin: 0; }
+.corner {
+  position: fixed; right: 0; bottom: 0;
+  padding: 0 max(16px, env(safe-area-inset-right, 0px)) max(16px, env(safe-area-inset-bottom, 0px)) 0;
+}
+[hidden] { display: none !important; }
+.btn.ghost { opacity: 0; cursor: default; width: 96px; height: 56px; padding: 0; }
+/* login panel */
+.overlay {
+  position: fixed; inset: 0; z-index: 20; display: grid; place-items: center;
+  background: rgba(8, 10, 9, .8);
+  padding: max(16px, env(safe-area-inset-top, 0px)) max(16px, env(safe-area-inset-right, 0px)) max(16px, env(safe-area-inset-bottom, 0px)) max(16px, env(safe-area-inset-left, 0px));
+}
+.card {
+  width: min(420px, 100%); box-sizing: border-box; background: var(--surface); border: 1px solid var(--line);
+  border-radius: 14px; padding: 24px; display: flex; flex-direction: column; gap: 16px;
+}
+.card h2 { margin: 0; font-family: var(--f-display); font-weight: 500; font-size: 20px; letter-spacing: .02em; }
+.card p { margin: 0; }
+.field { display: flex; flex-direction: column; gap: 6px; }
+.field label { font-family: var(--f-mono); font-size: 13px; color: var(--muted); }
+.row { display: flex; gap: 10px; flex-wrap: wrap; }
+.hint { font-size: 15px; color: var(--muted); }
+.err { color: var(--danger); font-size: 15px; min-height: 1.4em; }
+/* members area */
+#members {
+  position: fixed; inset: 0; z-index: 10; overflow: auto; background: var(--bg);
+  padding: max(20px, env(safe-area-inset-top, 0px)) max(16px, env(safe-area-inset-right, 0px)) max(32px, env(safe-area-inset-bottom, 0px)) max(16px, env(safe-area-inset-left, 0px));
+}
+.m-wrap { max-width: 780px; margin: 0 auto; display: flex; flex-direction: column; gap: 32px; }
+.m-head { display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
+.brand { font-family: var(--f-display); font-weight: 800; font-size: 22px; letter-spacing: .06em; }
+.who { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; font-family: var(--f-mono); font-size: 14px; }
+.chip { font-family: var(--f-mono); font-size: 12px; text-transform: uppercase; letter-spacing: .1em; padding: 3px 10px; border-radius: 999px; border: 1px solid var(--line); color: var(--muted); }
+.chip.allsee { border-color: var(--accent); color: var(--accent); }
+.chip.owner { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+.status { margin: 0; min-height: 1.4em; font-family: var(--f-mono); font-size: 14px; color: var(--muted); }
+.status.ok { color: var(--ok); }
+.status.err { color: var(--danger); }
+.sec { display: flex; flex-direction: column; gap: 14px; min-width: 0; }
+.sec-head { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; }
+.sec-head h2 { margin: 0; font-family: var(--f-mono); font-size: 13px; text-transform: uppercase; letter-spacing: .14em; font-weight: 500; }
+.sec-head span { font-size: 15px; }
+.notes { display: flex; flex-direction: column; }
+.note { border-top: 1px solid var(--line); padding: 16px 0; min-width: 0; }
+.note h3 { margin: 0 0 6px; font-size: 22px; font-weight: 400; overflow-wrap: anywhere; }
+.note .body { margin: 0 0 10px; white-space: pre-wrap; overflow-wrap: anywhere; }
+.meta { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; font-family: var(--f-mono); font-size: 12px; color: var(--muted); }
+.acts { display: flex; gap: 8px; flex-wrap: wrap; }
+.acts .btn { padding: 6px 12px; font-size: 13px; }
+.ann .note { padding: 22px 0; }
+.ann .note h3 { font-size: 26px; }
+.when { font-family: var(--f-mono); font-size: 12px; text-transform: uppercase; letter-spacing: .12em; color: var(--accent); margin-bottom: 6px; }
+.empty { margin: 0; padding: 16px 0; border-top: 1px solid var(--line); color: var(--muted); }
+.form { display: flex; flex-direction: column; gap: 14px; max-width: 560px; }
+.tablewrap { overflow-x: auto; }
+table { border-collapse: collapse; width: 100%; font-size: 16px; }
+th { text-align: left; font-family: var(--f-mono); font-size: 12px; font-weight: 500; text-transform: uppercase; letter-spacing: .1em; color: var(--muted); padding: 8px 12px 8px 0; border-bottom: 1px solid var(--line); }
+td { padding: 10px 12px 10px 0; border-bottom: 1px solid var(--line); vertical-align: middle; }
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation: none !important; transition: none !important; }
+}
+.card-form { display: flex; flex-direction: column; gap: 16px; }
+.switch { align-self: flex-start; }
+.code { font-family: var(--f-mono); font-size: 13px; user-select: all; word-break: break-all; background: var(--raised); border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; }
+</style>
+</head>
+<body>
+<main>
+  <section class="gate" id="g-calc" aria-label="Calculator">
+    <div class="calc">
+      <div class="screen" aria-live="polite">
+        <div class="exp" id="c-exp">&nbsp;</div>
+        <div class="val" id="c-val">0</div>
+      </div>
+      <div class="keys" id="keys">
+        <button class="key op" type="button" data-k="C" aria-label="Clear">C</button>
+        <button class="key op" type="button" data-k="B" aria-label="Backspace">&#9003;</button>
+        <button class="key op" type="button" data-k="/" aria-label="Divide">&divide;</button>
+        <button class="key op" type="button" data-k="*" aria-label="Multiply">&times;</button>
+        <button class="key" type="button" data-k="7">7</button>
+        <button class="key" type="button" data-k="8">8</button>
+        <button class="key" type="button" data-k="9">9</button>
+        <button class="key op" type="button" data-k="-" aria-label="Subtract">&minus;</button>
+        <button class="key" type="button" data-k="4">4</button>
+        <button class="key" type="button" data-k="5">5</button>
+        <button class="key" type="button" data-k="6">6</button>
+        <button class="key op" type="button" data-k="+" aria-label="Add">+</button>
+        <button class="key" type="button" data-k="1">1</button>
+        <button class="key" type="button" data-k="2">2</button>
+        <button class="key" type="button" data-k="3">3</button>
+        <button class="key eq" type="button" data-k="=" aria-label="Equals">=</button>
+        <button class="key zero" type="button" data-k="0">0</button>
+        <button class="key" type="button" data-k="." aria-label="Decimal point">.</button>
+      </div>
+    </div>
+  </section>
+  <section class="gate" id="g-riddle" aria-label="Riddle" hidden>
+    <form class="riddle" id="riddle-form" autocomplete="off">
+      <p class="eyebrow">Asked at the gates of Thebes</p>
+      <p class="q">What goes on four legs in the morning, on two legs at noon, and on three legs in the evening?</p>
+      <div class="ans">
+        <label class="sr" for="answer">Your answer</label>
+        <input id="answer" name="answer" type="text" placeholder="Your answer" autocapitalize="off" spellcheck="false">
+        <button class="btn primary" type="submit">Answer</button>
+      </div>
+      <p class="msg" id="riddle-msg" role="status" aria-live="polite"></p>
+    </form>
+  </section>
+  <section class="gate" id="g-von" aria-label="VON" hidden>
+    <h1 class="von">VON</h1>
+  </section>
+</main>
+<div class="corner" id="corner" hidden>
+  <button class="btn ghost" type="button" id="btn-login" aria-label="Log in">Log in</button>
+</div>
+<div class="overlay" id="login" role="dialog" aria-modal="true" aria-labelledby="login-title" hidden>
+  <div class="card" id="login-body"></div>
+</div>
+<div id="members" hidden></div>
+<script type="module">
+/* =====================================================================
+   STEP 1. Paste your Firebase web app settings here (see README.md).
+   Firebase console > Project settings > Your apps > Web app > Config.
+   These values are meant to be public. Your database rules protect the data.
+   ===================================================================== */
+const FIREBASE_CONFIG = {
+  apiKey: 'AIzaSyCbn1HiOqy7FicrVF7432Re12srPS_Vz-4',
+  authDomain: 'von-web.firebaseapp.com',
+  projectId: 'von-web',
+  storageBucket: 'von-web.firebasestorage.app',
+  messagingSenderId: '499141755942',
+  appId: '1:499141755942:web:2d96f3fdca86942dc2d2e7',
+};
+/* Usernames become sign-in addresses like carol@vonsite.example. Nothing is ever emailed. */
+const EMAIL_DOMAIN = 'vonsite.example';
+const FIREBASE_VERSION = '10.14.1';
+/* ===================================================================== */
+(function () {
+  'use strict';
+  var $ = function (s, r) { return (r || document).querySelector(s); };
+  function h(tag, props) {
+    var e = document.createElement(tag);
+    if (props) {
+      for (var k in props) {
+        var v = props[k];
+        if (k === 'class') e.className = v;
+        else if (k === 'text') e.textContent = v;
+        else if (k.slice(0, 2) === 'on') e.addEventListener(k.slice(2), v);
+        else if (v === true) e.setAttribute(k, '');
+        else if (v !== false && v != null) e.setAttribute(k, v);
+      }
+    }
+    var kids = Array.prototype.slice.call(arguments, 2).flat(Infinity);
+    for (var i = 0; i < kids.length; i++) {
+      var c = kids[i];
+      if (c == null || c === false) continue;
+      e.append(c.nodeType ? c : document.createTextNode(c));
+    }
+    return e;
+  }
+  function field(id, label, control) {
+    return h('div', { class: 'field' }, h('label', { for: id, text: label }), control);
+  }
+  function fmtDate(iso) {
+    var d = new Date(iso);
+    return isNaN(d) ? '' : d.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
+  }
+  function setKids(el, nodes) { el.replaceChildren.apply(el, nodes.filter(Boolean)); }
+  /* ---------- Firebase connection ---------- */
+  var CONFIGURED = !/^PASTE/.test(FIREBASE_CONFIG.apiKey) && !/^PASTE/.test(FIREBASE_CONFIG.projectId);
+  var COLLECTION = { ann: 'announcements', pub: 'notes_public', all: 'notes_allsee' };
+  async function createFirebaseBackend() {
+    var base = 'https://www.gstatic.com/firebasejs/' + FIREBASE_VERSION + '/';
+    var mods = await Promise.all([import(base + 'firebase-app.js'), import(base + 'firebase-auth.js'), import(base + 'firebase-firestore.js')]);
+    var A = mods[1], F = mods[2];
+    var app = mods[0].initializeApp(FIREBASE_CONFIG);
+    var auth = A.getAuth(app);
+    var db = F.getFirestore(app);
+    function emailOf(username) { return username.toLowerCase() + '@' + EMAIL_DOMAIN; }
+    function nameOf(fu) { return (fu.email || '').split('@')[0]; }
+    function iso(ts) { return ts && ts.toDate ? ts.toDate().toISOString() : new Date().toISOString(); }
+    function readItem(d) {
+      var x = d.data({ serverTimestamps: 'estimate' });
+      return { id: d.id, title: x.title, body: x.body, createdAt: iso(x.createdAt) };
+    }
+    function authReady() {
+      return new Promise(function (resolve) {
+        var off = null;
+        off = A.onAuthStateChanged(auth, function () { resolve(); if (off) off(); });
+      });
+    }
+    function profileOf(snap) {
+      if (!snap.exists()) return null;
+      var x = snap.data({ serverTimestamps: 'estimate' });
+      return { username: x.username, status: x.status, role: x.role, createdAt: iso(x.createdAt) };
+    }
+    return {
+      currentUser: async function () {
+        await authReady();
+        return auth.currentUser ? { uid: auth.currentUser.uid, username: nameOf(auth.currentUser) } : null;
+      },
+      signUp: async function (username, password) {
+        var cred = await A.createUserWithEmailAndPassword(auth, emailOf(username), password);
+        await F.setDoc(F.doc(db, 'users', cred.user.uid), { username: username, status: 'pending', role: 'user', createdAt: F.serverTimestamp() });
+        return { uid: cred.user.uid, username: username };
+      },
+      signIn: async function (username, password) {
+        var cred = await A.signInWithEmailAndPassword(auth, emailOf(username), password);
+        return { uid: cred.user.uid, username: nameOf(cred.user) };
+      },
+      signOut: function () { return A.signOut(auth); },
+      getProfile: async function (uid) { return profileOf(await F.getDoc(F.doc(db, 'users', uid))); },
+      createProfile: async function (username) {
+        var uid = auth.currentUser.uid;
+        await F.setDoc(F.doc(db, 'users', uid), { username: username, status: 'pending', role: 'user', createdAt: F.serverTimestamp() });
+        return { username: username, status: 'pending', role: 'user' };
+      },
+      getSite: async function () {
+        var s = await F.getDoc(F.doc(db, 'config', 'site'));
+        return s.exists() ? s.data() : null;
+      },
+      watchProfile: function (uid, cb) {
+        return F.onSnapshot(F.doc(db, 'users', uid), function (s) { cb(profileOf(s), null); }, function (e) { cb(null, e); });
+      },
+      watch: function (kind, cb) {
+        var q = F.query(F.collection(db, COLLECTION[kind]), F.orderBy('createdAt', 'desc'));
+        return F.onSnapshot(q, function (s) { cb(s.docs.map(readItem), null); }, function (e) { cb(null, e); });
+      },
+      watchUsers: function (cb) {
+        return F.onSnapshot(F.collection(db, 'users'), function (s) {
+          cb(s.docs.map(function (d) { var p = profileOf(d); p.uid = d.id; return p; }), null);
+        }, function (e) { cb(null, e); });
+      },
+      addItem: function (kind, item) {
+        return F.addDoc(F.collection(db, COLLECTION[kind]), { title: item.title, body: item.body, createdAt: F.serverTimestamp(), updatedAt: F.serverTimestamp() });
+      },
+      updateItem: function (kind, id, item) {
+        return F.updateDoc(F.doc(db, COLLECTION[kind], id), { title: item.title, body: item.body, updatedAt: F.serverTimestamp() });
+      },
+      deleteItem: function (kind, id) { return F.deleteDoc(F.doc(db, COLLECTION[kind], id)); },
+      setUserStatus: function (uid, status) { return F.updateDoc(F.doc(db, 'users', uid), { status: status }); },
+      setUserRole: function (uid, role) { return F.updateDoc(F.doc(db, 'users', uid), { role: role }); },
+    };
+  }
+  var backend = null, backendP = null;
+  function getBackend() {
+    if (!backendP) {
+      if (window.__vonTestBackend) backendP = Promise.resolve(window.__vonTestBackend);
+      else if (!CONFIGURED) backendP = Promise.reject(new Error('not-configured'));
+      else backendP = createFirebaseBackend();
+    }
+    return backendP.then(function (b) { backend = b; return b; });
+  }
+  function explain(e) {
+    var c = (e && e.code) || '';
+    if (c === 'auth/email-already-in-use') return 'That username is taken.';
+    if (c === 'auth/invalid-credential' || c === 'auth/wrong-password' || c === 'auth/user-not-found' || c === 'auth/invalid-login-credentials') return 'Wrong username or password.';
+    if (c === 'auth/too-many-requests') return 'Too many attempts. Wait a few minutes and try again.';
+    if (c === 'auth/network-request-failed' || c === 'unavailable') return 'Could not reach the server. Check your connection and try again.';
+    if (c === 'auth/operation-not-allowed') return 'Email and password sign-in is not turned on in Firebase yet.';
+    if (c === 'auth/weak-password') return 'Choose a stronger password.';
+    if (c === 'permission-denied') return 'The database refused that. Your access may have changed.';
+    return (e && e.message) || 'Something went wrong. Try again.';
+  }
+  /* ---------- gates ---------- */
+  var gates = { calc: $('#g-calc'), riddle: $('#g-riddle'), von: $('#g-von') };
+  var current = 'calc';
+  var S = { in: false, role: 'user', username: '', uid: null, ownerUid: null, unsubs: [] };
+  function go(name) {
+    current = name;
+    for (var k in gates) gates[k].hidden = (k !== name);
+    var g = gates[name];
+    g.classList.remove('enter'); void g.offsetWidth; g.classList.add('enter');
+    $('#corner').hidden = (name !== 'von') || S.in;
+    if (name === 'riddle') setTimeout(function () { $('#answer').focus(); }, 60);
+  }
+  /* ---------- gate 1: calculator ---------- */
+  var calc = { cur: '0', prev: null, op: null, fresh: true, afterEq: false, entry: '', lastEntry: '', locked: false };
+  var elVal = $('#c-val'), elExp = $('#c-exp');
+  var SYM = { '+': '+', '-': '−', '*': '×', '/': '÷' };
+  function fmt(n) {
+    if (!isFinite(n)) return 'Error';
+    var s = String(parseFloat(Number(n).toPrecision(12)));
+    return s.length > 14 ? Number(n).toExponential(6) : s;
+  }
+  function apply(a, op, b) {
+    if (op === '+') return a + b;
+    if (op === '-') return a - b;
+    if (op === '*') return a * b;
+    return b === 0 ? NaN : a / b;
+  }
+  function pretty(entry) {
+    return entry.replace(/(?!^)([+\-*\/])/g, ' $1 ').replace(/[*\/-]/g, function (c, i) {
+      return (i === 0 && c === '-') ? c : SYM[c];
+    });
+  }
+  function show() {
+    elVal.textContent = calc.cur;
+    var line = calc.afterEq ? pretty(calc.lastEntry) + ' =' : pretty(calc.entry);
+    elExp.textContent = line.trim() ? line : ' ';
+  }
+  function resetCalc() {
+    calc.cur = '0'; calc.prev = null; calc.op = null; calc.fresh = true;
+    calc.afterEq = false; calc.entry = ''; calc.lastEntry = ''; calc.locked = false;
+  }
+  function digit(k) {
+    if (calc.fresh) {
+      if (calc.afterEq) { calc.entry = ''; calc.afterEq = false; }
+      calc.cur = (k === '.') ? '0.' : k;
+      calc.fresh = false;
+    } else {
+      if (k === '.' && calc.cur.indexOf('.') > -1) return;
+      if (calc.cur.replace(/[-.]/g, '').length >= 12) return;
+      calc.cur = (calc.cur === '0' && k !== '.') ? k : calc.cur + k;
+    }
+    calc.entry += k;
+  }
+  function oper(k) {
+    if (calc.op && calc.fresh) { calc.entry = calc.entry.slice(0, -1) + k; calc.op = k; return; }
+    if (calc.afterEq) { calc.entry = calc.cur; calc.afterEq = false; }
+    if (!calc.entry) calc.entry = calc.cur;
+    if (calc.op) {
+      var r = apply(calc.prev, calc.op, Number(calc.cur));
+      calc.prev = r; calc.cur = fmt(r);
+    } else {
+      calc.prev = Number(calc.cur);
+    }
+    calc.entry += k; calc.op = k; calc.fresh = true;
+  }
+  function equals() {
+    if (!calc.op) return;
+    var hit = (calc.entry === '4+5' && !calc.fresh);
+    var r = apply(calc.prev, calc.op, Number(calc.cur));
+    calc.lastEntry = calc.entry;
+    calc.cur = fmt(r); calc.prev = null; calc.op = null; calc.fresh = true; calc.afterEq = true;
+    if (hit && r === 9) {
+      calc.locked = true;
+      setTimeout(function () { go('riddle'); }, 900);
+    }
+  }
+  function back() {
+    if (calc.fresh || calc.afterEq) return;
+    calc.cur = (calc.cur.length <= 1 || (calc.cur.length === 2 && calc.cur[0] === '-')) ? '0' : calc.cur.slice(0, -1);
+    calc.entry = calc.entry.slice(0, -1);
+  }
+  function press(k) {
+    if (calc.locked) return;
+    if (calc.cur === 'Error' && k !== 'C') resetCalc();
+    if (/^\d$/.test(k) || k === '.') digit(k);
+    else if ('+-*/'.indexOf(k) > -1) oper(k);
+    else if (k === '=') equals();
+    else if (k === 'C') resetCalc();
+    else if (k === 'B') back();
+    show();
+  }
+  $('#keys').addEventListener('click', function (ev) {
+    var b = ev.target.closest('button[data-k]');
+    if (b) press(b.getAttribute('data-k'));
+  });
+  /* ---------- gate 2: riddle ---------- */
+  var ACCEPT = ['man', 'a man', 'the man', 'men', 'human', 'a human', 'the human', 'humans', 'human being', 'a human being', 'mankind', 'humankind'];
+  function normalize(s) {
+    return s.toLowerCase().replace(/[^a-z\s]/g, '').replace(/\s+/g, ' ').trim()
+      .replace(/^(it is|its|the answer is|answer is)\s+/, '');
+  }
+  $('#riddle-form').addEventListener('submit', function (ev) {
+    ev.preventDefault();
+    var input = $('#answer'), msg = $('#riddle-msg'), box = $('#riddle-form');
+    if (ACCEPT.indexOf(normalize(input.value)) > -1) {
+      msg.textContent = 'Correct.'; msg.className = 'msg ok';
+      input.disabled = true;
+      setTimeout(function () { go('von'); }, 900);
+    } else {
+      msg.textContent = input.value.trim() ? 'That is not the answer. Try again.' : 'Type your answer first.';
+      msg.className = 'msg err';
+      box.classList.remove('shake'); void box.offsetWidth; box.classList.add('shake');
+      input.select();
+    }
+  });
+  /* ---------- keyboard ---------- */
+  document.addEventListener('keydown', function (ev) {
+    if (ev.key === 'Escape' && !$('#login').hidden) { closeLogin(); return; }
+    if (current !== 'calc' || ev.ctrlKey || ev.metaKey || ev.altKey) return;
+    var k = ev.key, map = { Enter: '=', '=': '=', Backspace: 'B', Escape: 'C', c: 'C', C: 'C', x: '*', X: '*' };
+    var key = map[k] || k;
+    if (/^\d$/.test(key) || key === '.' || ('+-*/'.indexOf(key) > -1 && key.length === 1) || key === '=' || key === 'B' || key === 'C') {
+      ev.preventDefault();
+      press(key);
+    }
+  });
+  /* ---------- roles and data ---------- */
+  var ROLE_LABEL = { user: 'User', allsee: 'Allsee', owner: 'Owner' };
+  var ROLE_NOTE = { user: 'View only', allsee: 'Sees the extra notes', owner: 'Can change anything' };
+  var D = { ann: null, pub: null, all: null, users: null };
+  var M = {};
+  /* ---------- log in panel ---------- */
+  function showLogin(nodes) {
+    var body = $('#login-body');
+    setKids(body, nodes);
+    $('#login').hidden = false;
+    setTimeout(function () {
+      if (body.contains(document.activeElement)) return;
+      var f = $('#login-body input, #login-body button');
+      if (f) f.focus();
+    }, 30);
+  }
+  function closeLogin() { $('#login').hidden = true; if (!S.in) $('#btn-login').focus(); }
+  function closeBtn(label) { return h('button', { class: 'btn', type: 'button', text: label || 'Close', onclick: closeLogin }); }
+  $('#login').addEventListener('click', function (ev) { if (ev.target === $('#login')) closeLogin(); });
+  function showMessage(title, text, extra) {
+    showLogin([h('h2', { id: 'login-title', text: title }), h('p', { text: text }), h('div', { class: 'row' }, extra, closeBtn())]);
+  }
+  function openLogin() {
+    showLogin([h('h2', { id: 'login-title', text: 'Log in' }), h('p', { class: 'hint', text: 'One moment…' })]);
+    getBackend().then(function (b) { return b.currentUser(); }).then(function (u) {
+      return u ? proceed(u) : renderAuth('login');
+    }).catch(function (e) {
+      backendP = null;
+      if (e && e.message === 'not-configured') {
+        showMessage('Not connected yet', 'This site is not connected to Firebase. Open index.html and fill in the Firebase settings at the top of the script. README.md has the steps.');
+      } else {
+        showMessage('Could not log in', explain(e));
+      }
+    });
+  }
+  function renderAuth(mode) {
+    var signup = mode === 'signup';
+    var user = h('input', { id: 'au-name', type: 'text', maxlength: '24', autocomplete: 'username', autocapitalize: 'off', spellcheck: 'false' });
+    var pass = h('input', { id: 'au-pass', type: 'password', maxlength: '200', autocomplete: signup ? 'new-password' : 'current-password' });
+    var pass2 = signup ? h('input', { id: 'au-pass2', type: 'password', maxlength: '200', autocomplete: 'new-password' }) : null;
+    var err = h('p', { class: 'err', role: 'alert' });
+    var btn = h('button', { class: 'btn primary', type: 'submit', text: signup ? 'Request account' : 'Log in' });
+    var form = h('form', {
+      class: 'card-form', novalidate: true,
+      onsubmit: function (ev) {
+        ev.preventDefault();
+        var name = user.value.trim(), pw = pass.value;
+        if (!/^[A-Za-z0-9_]{3,24}$/.test(name)) { err.textContent = 'Use 3 to 24 letters, numbers or underscores for the username.'; user.focus(); return; }
+        if (!pw) { err.textContent = 'Enter your password.'; pass.focus(); return; }
+        if (signup && pw.length < 8) { err.textContent = 'Use a password with at least 8 characters.'; pass.focus(); return; }
+        if (signup && pw !== pass2.value) { err.textContent = 'The two passwords do not match.'; pass2.focus(); return; }
+        err.textContent = ''; btn.disabled = true;
+        (signup ? backend.signUp(name, pw) : backend.signIn(name, pw)).then(function (u) {
+          return proceed(u);
+        }).catch(function (e) {
+          btn.disabled = false;
+          err.textContent = explain(e);
+        });
+      }
+    },
+      field('au-name', 'Username', user),
+      field('au-pass', 'Password', pass),
+      signup ? field('au-pass2', 'Repeat password', pass2) : null,
+      err,
+      h('div', { class: 'row' }, btn, closeBtn('Cancel'))
+    );
+    showLogin([
+      h('h2', { id: 'login-title', text: signup ? 'Request an account' : 'Log in' }),
+      signup ? h('p', { class: 'hint', text: 'The owner has to accept your request before you can get in.' }) : null,
+      form,
+      h('button', { class: 'btn switch', type: 'button', text: signup ? 'I already have an account' : 'Create an account', onclick: function () { renderAuth(signup ? 'login' : 'signup'); } })
+    ]);
+  }
+  function logoutBtn() { return h('button', { class: 'btn', type: 'button', text: 'Log out', onclick: logout }); }
+  function showPending(username, uid, noOwnerYet) {
+    showLogin([
+      h('h2', { id: 'login-title', text: 'Waiting for approval' }),
+      h('p', { text: 'Your account request for "' + username + '" has been sent. You can get in once the owner accepts it.' }),
+      noOwnerYet ? h('p', { class: 'hint', text: 'This site has no owner yet. If you are setting it up, this is your account ID. Put it in Firebase as the owner, as the README explains:' }) : null,
+      noOwnerYet ? h('div', { class: 'code', text: uid }) : null,
+      h('div', { class: 'row' }, h('button', { class: 'btn primary', type: 'button', text: 'Check again', onclick: openLogin }), logoutBtn(), closeBtn())
+    ]);
+  }
+  /* ---------- session ---------- */
+  async function proceed(user) {
+    var site = null;
+    try { site = await backend.getSite(); } catch (e) { site = null; }
+    var ownerUid = site && site.ownerUid ? site.ownerUid : null;
+    var prof = await backend.getProfile(user.uid);
+    if (ownerUid === user.uid) {
+      enter({ uid: user.uid, username: (prof && prof.username) || user.username, role: 'owner', ownerUid: ownerUid });
+      return;
+    }
+    if (!prof) prof = awaitbackend.createProfile(user.username);
+    if (prof.status === 'approved') {
+      enter({ uid: user.uid, username: prof.username, role: prof.role === 'allsee' ? 'allsee' : 'user', ownerUid: ownerUid });
+    } else if (prof.status === 'declined') {
+      leaveMembers();
+      showLogin([
+        h('h2', { id: 'login-title', text: 'Request declined' }),
+        h('p', { text: 'The owner did not accept this account.' }),
+        h('div', { class: 'row' }, logoutBtn(), closeBtn())
+      ]);
+    } else {
+      leaveMembers();
+      showPending(prof.username, user.uid, !ownerUid);
+    }
+  }
+  function stopWatching() {
+    S.unsubs.forEach(function (f) { try { f(); } catch (e) { } });
+    S.unsubs = [];
+  }
+  function leaveMembers() {
+    stopWatching();
+    S.in = false;
+    $('#members').hidden = true;
+    $('#members').replaceChildren();
+    $('#corner').hidden = (current !== 'von');
+  }
+  function logout() {
+    leaveMembers();
+    $('#login').hidden = true;
+    var done = backend ? backend.signOut() : null;
+    if (done && done.catch) done.catch(function () { });
+    if (current === 'von') $('#btn-login').focus();
+  }
+  $('#btn-login').addEventListener('click', openLogin);
+  var checking = false;
+  async function recheck() {
+    if (checking) return;
+    checking = true;
+    try {
+      stopWatching();
+      var u = await backend.currentUser();
+      leaveMembers();
+      if (!u) renderAuth('login'); else await proceed(u);
+    } catch (e) {
+      leaveMembers();
+      showMessage('Could not check your access', explain(e));
+    } finally {
+      checking = false;
+    }
+  }
+  function onWatchError(e) {
+    var c = (e && e.code) || '';
+    if (c === 'permission-denied' || c === 'unauthenticated') recheck();
+    else setStatus(explain(e), 'err');
+  }
+  function enter(info) {
+    S.in = true; S.username = info.username; S.role = info.role; S.uid = info.uid; S.ownerUid = info.ownerUid;
+    D.ann = D.pub = D.all = D.users = null;
+    $('#login').hidden = true;
+    $('#corner').hidden = true;
+    buildMembers();
+    startWatching();
+  }
+  function startWatching() {
+    stopWatching();
+    var b = backend;
+    function watchKind(kind) {
+      S.unsubs.push(b.watch(kind, function (items, err) {
+        if (err) return onWatchError(err);
+        D[kind] = items;
+        if (!(M.editing && M.editing.kind === kind)) renderList(kind);
+      }));
+    }
+    watchKind('ann');
+    watchKind('pub');
+    if (S.role !== 'user') watchKind('all');
+    if (S.role === 'owner') {
+S.unsubs.push(b.watchUsers(function (list, err) {
+        if (err) return onWatchError(err);
+        D.users = list;
+        var a = document.activeElement;
+        if (!(a && M.people && M.people.contains(a) && a.tagName === 'SELECT')) renderPeople();
+      }));
+    } else {
+S.unsubs.push(b.watchProfile(S.uid, function (p, err) {
+        if (err) return onWatchError(err);
+        if (!p || p.status !== 'approved' || (p.role === 'allsee' ? 'allsee' : 'user') !== S.role) recheck();
+      }));
+    }
+  }
+  function setStatus(msg, kind) {
+    if (!M.status) return;
+    M.status.textContent = msg;
+    M.status.className = 'status ' + (kind || '');
+  }
+  /* ---------- members area ---------- */
+  function section(title, sub, body) {
+    return h('section', { class: 'sec' }, h('div', { class: 'sec-head' }, h('h2', { text: title }), h('span', { class: 'muted', text: sub })), body);
+  }
+  function buildMembers() {
+    var root = $('#members');
+    var role = S.role;
+    M.status = h('p', { class: 'status', role: 'status', 'aria-live': 'polite' });
+    M.ann = h('div', { class: 'notes ann' });
+    M.pub = h('div', { class: 'notes' });
+    M.all = role !== 'user' ? h('div', { class: 'notes' }) : null;
+    M.people = role === 'owner' ? h('div') : null;
+    M.editing = null; M.confirm = null; M.confirmUser = null;
+
+    var head = h('header', { class: 'm-head' },
+      h('span', { class: 'brand', text: 'VON' }),
+      h('div', { class: 'who' },
+        h('span', { text: S.username }),
+        h('span', { class: 'chip ' + role, text: ROLE_LABEL[role] }),
+        h('span', { class: 'muted', text: ROLE_NOTE[role] }),
+        logoutBtn()
+      )
+    );
+    var parts = [head, M.status, section('Announcements', 'Posted by the owner', M.ann)];
+    if (role === 'owner') parts.push(composer('ann', 'Post an announcement', 'Headline', 'Message', 'Post announcement', 'Announcement posted.'));
+    parts.push(section('Notes', 'Visible to every role', M.pub));
+    if (M.all) parts.push(section('Allsee notes', 'Only allsee and owners see these', M.all));
+    if (role === 'owner') {
+      parts.push(composer(null, 'New note', 'Title', 'Note', 'Post note', 'Note posted.'));
+      parts.push(section('People', 'Accept new accounts and set roles', M.people));
+    }
+    root.replaceChildren(h('div', { class: 'm-wrap' }, parts));
+    root.hidden = false;
+    renderList('ann');
+    renderList('pub');
+    if (M.all) renderList('all');
+    if (M.people) renderPeople();
+  }
+  function composer(fixedKind, heading, titleLabel, bodyLabel, submitLabel, doneMsg) {
+    var key = fixedKind || 'note';
+    var title = h('input', { id: key + '-title', type: 'text', maxlength: '120' });
+    var body = h('textarea', { id: key + '-body', rows: '4', maxlength: '4000' });
+    var aud = fixedKind ? null : h('select', { id: 'n-aud' }, h('option', { value: 'pub', text: 'Everyone' }), h('option', { value: 'all', text: 'Allsee and owners only' }));
+    var btn = h('button', { class: 'btn primary', type: 'submit', text: submitLabel });
+    var form = h('form', {
+      class: 'form', novalidate: true,
+      onsubmit: function (ev) {
+        ev.preventDefault();
+        var t = title.value.trim();
+        if (!t) { setStatus('Add a title first.', 'err'); title.focus(); return; }
+        btn.disabled = true;
+        backend.addItem(fixedKind || aud.value, { title: t, body: body.value.trim() })
+          .then(function () { title.value = ''; body.value = ''; setStatus(doneMsg, 'ok'); })
+          .catch(function (e) { setStatus(explain(e), 'err'); })
+          .then(function () { btn.disabled = false; });
+      }
+    },
+      field(key + '-title', titleLabel, title),
+      field(key + '-body', bodyLabel, body),
+      aud ? field('n-aud', 'Who sees it', aud) : null,
+      h('div', { class: 'row' }, btn)
+    );
+    return section(heading, 'Owners only', form);
+  }
+  function renderList(kind) {
+    var box = M[kind];
+    if (!box) return;
+    var items = D[kind];
+    if (items === null) { setKids(box, [h('p', { class: 'empty', text: 'Loading…' })]); return; }
+    if (!items.length) {
+      var owner = S.role === 'owner';
+      var msg = kind === 'ann'
+        ? (owner ? 'No announcements yet. Post the first one below.' : 'No announcements yet.')
+        : (owner ? 'Nothing here yet. Post the first note below.' : 'Nothing has been posted here yet.');
+      setKids(box, [h('p', { class: 'empty', text: msg })]);
+      return;
+    }
+    setKids(box, items.map(function (n) { return noteEl(kind, n); }));
+  }
+  function noteEl(kind, n) {
+    var isOwnerRole = S.role === 'owner';
+    if (isOwnerRole && M.editing && M.editing.kind === kind && M.editing.id === n.id) return editEl(kind, n);
+    var acts = null;
+    if (isOwnerRole) {
+      var key = kind + ':' + n.id;
+      var del;
+      if (M.confirm === key) {
+        del = [
+          h('button', {
+            class: 'btn danger', type: 'button', text: 'Confirm delete',
+            onclick: function () {
+              M.confirm = null;
+              backend.deleteItem(kind, n.id).then(function () { setStatus('Deleted.', 'ok'); })
+                .catch(function (e) { setStatus(explain(e), 'err'); renderList(kind); });
+            }
+          }),
+          h('button', { class: 'btn', type: 'button', text: 'Cancel', onclick: function () { M.confirm = null; renderList(kind); } })
+        ];
+      } else {
+        del = [h('button', { class: 'btn', type: 'button', text: 'Delete', onclick: function () { M.confirm = key; renderList(kind); } })];
+      }
+      acts = h('div', { class: 'acts' },
+        h('button', { class: 'btn', type: 'button', text: 'Edit', onclick: function () { M.editing = { kind: kind, id: n.id, draft: { title: n.title || '', body: n.body || '' } }; M.confirm = null; renderList(kind); } }),
+        del
+      );
+    }
+    return h('article', { class: 'note' },
+      kind === 'ann' ? h('div', { class: 'when', text: fmtDate(n.createdAt) }) : null,
+      h('h3', { text: n.title || '(untitled)' }),
+      n.body ? h('p', { class: 'body', text: n.body }) : null,
+      (kind === 'ann' && !acts) ? null : h('div', { class: 'meta' }, kind === 'ann' ? null : h('span', { text: fmtDate(n.createdAt) }), acts)
+    );
+  }
+  function editEl(kind, n) {
+    var draft = M.editing.draft;
+    var t = h('input', { id: 'e-title', type: 'text', maxlength: '120', value: draft.title, oninput: function () { draft.title = t.value; } });
+    var b = h('textarea', { id: 'e-body', rows: '4', maxlength: '4000', oninput: function () { draft.body = b.value; } });
+    b.value = draft.body;
+    var save = h('button', { class: 'btn primary', type: 'submit', text: 'Save' });
+    return h('form', {
+      class: 'note form', novalidate: true,
+      onsubmit: function (ev) {
+        ev.preventDefault();
+        var title = draft.title.trim();
+        if (!title) { setStatus('A note needs a title.', 'err'); return; }
+        save.disabled = true;
+        backend.updateItem(kind, n.id, { title: title, body: draft.body.trim() })
+          .then(function () { M.editing = null; setStatus('Saved.', 'ok'); renderList(kind); })
+          .catch(function (e) { save.disabled = false; setStatus(explain(e), 'err'); });
+      }
+    },
+      field('e-title', 'Title', t),
+      field('e-body', 'Note', b),
+      h('div', { class: 'row' }, save, h('button', { class: 'btn', type: 'button', text: 'Cancel', onclick: function () { M.editing = null; renderList(kind); } }))
+    );
+  }
+  function renderPeople() {
+    if (!M.people) return;
+    var us = D.users;
+    if (us === null) { setKids(M.people, [h('p', { class: 'empty', text: 'Loading…' })]); return; }
+    us = us.filter(function (u) { return u.uid !== S.ownerUid; });
+    if (!us.length) {
+      setKids(M.people, [h('p', { class: 'empty', text: 'Nobody else has made an account yet. Share the site address, then accept requests here.' })]);
+      return;
+    }
+    function act(promise, okMsg) {
+      return promise.then(function () { setStatus(okMsg, 'ok'); }).catch(function (e) { setStatus(explain(e), 'err'); renderPeople(); });
+    }
+    var waiting = us.filter(function (u) { return u.status === 'pending'; }).length;
+    var banner = waiting ? h('p', { class: 'status ok', text: waiting + (waiting === 1 ? ' account is' : ' accounts are') + ' waiting for your approval.' }) : null;
+    var rank = { pending: 0, approved: 1, declined: 2 };
+    var rows = us.slice().sort(function (a, b) {
+      var d = (rank[a.status] || 0) - (rank[b.status] || 0);
+      return d || a.username.localeCompare(b.username);
+    }).map(function (u) {
+      var cell;
+      if (u.status === 'pending' || u.status === 'declined') {
+        var approve = h('button', { class: 'btn primary', type: 'button', text: 'Approve' });
+        approve.addEventListener('click', function () {
+          approve.disabled = true;
+          act(backend.setUserStatus(u.uid, 'approved'), u.username + ' approved as User.');
+        });
+        var kids = [h('span', { class: 'chip ' + (u.status === 'pending' ? 'allsee' : ''), text: u.status === 'pending' ? 'Pending' : 'Declined' }), approve];
+        if (u.status === 'pending') {
+          var decline = h('button', { class: 'btn danger', type: 'button', text: 'Decline' });
+          decline.addEventListener('click', function () {
+            decline.disabled = true;
+            act(backend.setUserStatus(u.uid, 'declined'), u.username + ' declined.');
+          });
+          kids.push(decline);
+        }
+        cell = h('div', { class: 'acts' }, kids);
+      } else {
+        var sel = h('select', {
+          'aria-label': 'Role for ' + u.username,
+          onchange: function () {
+            sel.disabled = true;
+            act(backend.setUserRole(u.uid, sel.value), u.username + ' is now ' + ROLE_LABEL[sel.value] + '.').then(function () { sel.disabled = false; });
+          }
+        }, ['user', 'allsee'].map(function (r) { var o = h('option', { value: r, text: ROLE_LABEL[r] }); if (r === u.role) o.selected = true; return o; }));
+        var remove;
+        if (M.confirmUser === u.uid) {
+          remove = [
+            h('button', {
+              class: 'btn danger', type: 'button', text: 'Confirm remove access',
+              onclick: function () { M.confirmUser = null; act(backend.setUserStatus(u.uid, 'declined'), u.username + ' no longer has access.'); }
+            }),
+            h('button', { class: 'btn', type: 'button', text: 'Cancel', onclick: function () { M.confirmUser = null; renderPeople(); } })
+          ];
+        } else {
+          remove = [h('button', { class: 'btn', type: 'button', text: 'Remove access', onclick: function () { M.confirmUser = u.uid; renderPeople(); } })];
+        }
+        cell = h('div', { class: 'acts' }, sel, remove);
+      }
+      return h('tr', null, h('td', { text: u.username }), h('td', { class: 'muted', text: fmtDate(u.createdAt) }), h('td', null, cell));
+    });
+    setKids(M.people, [banner, h('div', { class: 'tablewrap' },
+      h('table', null,
+        h('thead', null, h('tr', null, h('th', { text: 'Username' }), h('th', { text: 'Joined' }), h('th', { text: 'Role' }))),
+        h('tbody', null, rows)
+      )
+    )]);
+  }
+  show();
+})();
+</script></body></html>
